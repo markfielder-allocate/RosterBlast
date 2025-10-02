@@ -1,18 +1,19 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const timerEl = document.getElementById("timer");
+const scoreEl = document.getElementById("score");
 
 /* ---------------- CONFIG ---------------- */
 const NUM_BLOCKS = 15;     // number of movable blocks
 const TIME_LIMIT = 90;     // time in seconds
 const BLOCK_POINTS = 100;  // per matched block
 const TIME_BONUS = 10;     // per second left if all matched
-/* ----------------------------------------- */
-
 const gridSize = 40;
+/* ----------------------------------------- */
 
 // --- Dynamically size grid so there’s enough room ---
 let gridSide = Math.ceil(Math.sqrt(NUM_BLOCKS * 4)); // ~4x total pieces
-if (gridSide < 10) gridSide = 10; // minimum
+if (gridSide < 10) gridSide = 10;
 const rows = gridSide;
 const cols = gridSide;
 
@@ -24,13 +25,15 @@ const css = getComputedStyle(document.documentElement);
 const COLOR_BG          = css.getPropertyValue('--bg').trim() || '#f6f7f8';
 const GRID_LINE         = css.getPropertyValue('--grid-line').trim() || '#e2e6ea';
 const COLOR_BLOCK       = css.getPropertyValue('--block').trim() || '#e74c3c';
-const COLOR_TARGET      = css.getPropertyValue('--target').trim() || '#7b4fa1';
 const COLOR_TARGET_HIT  = css.getPropertyValue('--target-hit').trim() || '#28a745';
 const COLOR_WIN         = css.getPropertyValue('--win').trim() || '#3498db';
 const COLOR_LOSE        = '#e74c3c';
 
-const timerEl = document.getElementById("timer");
-const scoreEl = document.getElementById("score");
+// ---- IMAGES ----
+const sadNurse = new Image();
+sadNurse.src = 'nurse_sad.png';
+const happyNurse = new Image();
+happyNurse.src = 'nurse_happy.png';
 
 // ---- GAME SETUP ----
 const topHalf = Math.floor(rows / 2);
@@ -38,7 +41,7 @@ const topHalf = Math.floor(rows / 2);
 function randomUniquePositions(count, minY, maxY, taken = []) {
   const positions = [];
   while (positions.length < count) {
-    const x = Math.floor(Math.random() * (cols - 2)) + 1;
+    const x = Math.floor(Math.random() * (cols - 2)) + 1; // avoid edges
     const y = Math.floor(Math.random() * (maxY - minY)) + minY;
     if (y <= 0 || y >= rows - 1) continue;
     const conflict =
@@ -169,17 +172,33 @@ function draw() {
     }
   }
 
-  // Targets
+  // Targets with nurse images
   targets.forEach(t => {
     const hit = blocks.some(b => b.x === t.x && b.y === t.y);
-    ctx.fillStyle = hit ? COLOR_TARGET_HIT : COLOR_TARGET;
-    ctx.fillRect(t.x * gridSize, t.y * gridSize, gridSize, gridSize);
+    const img = hit ? happyNurse : sadNurse;
+    if (img.complete) {
+      ctx.drawImage(img, t.x * gridSize, t.y * gridSize, gridSize, gridSize);
+    } else {
+      img.onload = () => ctx.drawImage(img, t.x * gridSize, t.y * gridSize, gridSize, gridSize);
+    }
   });
 
-  // Blocks
+  // Blocks — red normally, green + happy nurse drawn on top if matched
   blocks.forEach(b => {
-    ctx.fillStyle = isOnTarget(b) ? COLOR_TARGET_HIT : COLOR_BLOCK;
-    ctx.fillRect(b.x * gridSize, b.y * gridSize, gridSize, gridSize);
+    if (isOnTarget(b)) {
+      // green background
+      ctx.fillStyle = COLOR_TARGET_HIT;
+      ctx.fillRect(b.x * gridSize, b.y * gridSize, gridSize, gridSize);
+      // happy nurse on top
+      if (happyNurse.complete) {
+        ctx.drawImage(happyNurse, b.x * gridSize, b.y * gridSize, gridSize, gridSize);
+      } else {
+        happyNurse.onload = () => ctx.drawImage(happyNurse, b.x * gridSize, b.y * gridSize, gridSize, gridSize);
+      }
+    } else {
+      ctx.fillStyle = COLOR_BLOCK;  // normal red
+      ctx.fillRect(b.x * gridSize, b.y * gridSize, gridSize, gridSize);
+    }
   });
 
   if (finished) {
