@@ -1,16 +1,23 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-const gridSize = 40;
-const rows = canvas.height / gridSize;
-const cols = canvas.width / gridSize;
-
 /* ---------------- CONFIG ---------------- */
-const NUM_BLOCKS = 5;      // 🔴 number of movable blocks
-const TIME_LIMIT = 60;     // ⏱️ seconds allowed
-const BLOCK_POINTS = 100;  // 🏆 points per matched block
-const TIME_BONUS = 10;     // 🕒 points per second left if all matched
+const NUM_BLOCKS = 15;     // number of movable blocks
+const TIME_LIMIT = 90;     // time in seconds
+const BLOCK_POINTS = 100;  // per matched block
+const TIME_BONUS = 10;     // per second left if all matched
 /* ----------------------------------------- */
+
+const gridSize = 40;
+
+// --- Dynamically size grid so there’s enough room ---
+let gridSide = Math.ceil(Math.sqrt(NUM_BLOCKS * 4)); // ~4x total pieces
+if (gridSide < 10) gridSide = 10; // minimum
+const rows = gridSide;
+const cols = gridSide;
+
+canvas.width = cols * gridSize;
+canvas.height = rows * gridSize;
 
 // ---- COLORS ----
 const css = getComputedStyle(document.documentElement);
@@ -22,13 +29,16 @@ const COLOR_TARGET_HIT  = css.getPropertyValue('--target-hit').trim() || '#28a74
 const COLOR_WIN         = css.getPropertyValue('--win').trim() || '#3498db';
 const COLOR_LOSE        = '#e74c3c';
 
+const timerEl = document.getElementById("timer");
+const scoreEl = document.getElementById("score");
+
 // ---- GAME SETUP ----
 const topHalf = Math.floor(rows / 2);
 
 function randomUniquePositions(count, minY, maxY, taken = []) {
   const positions = [];
   while (positions.length < count) {
-    const x = Math.floor(Math.random() * (cols - 2)) + 1; // avoid edges
+    const x = Math.floor(Math.random() * (cols - 2)) + 1;
     const y = Math.floor(Math.random() * (maxY - minY)) + minY;
     if (y <= 0 || y >= rows - 1) continue;
     const conflict =
@@ -56,6 +66,7 @@ const timerInterval = setInterval(() => {
     clearInterval(timerInterval);
   }
   updateScore();
+  updateHUD();
   draw();
 }, 1000);
 
@@ -101,6 +112,7 @@ function drag(e){
     blocks[dragging.index] = {x:bx, y:by};
   }
   updateScore();
+  updateHUD();
   draw();
 }
 
@@ -110,9 +122,9 @@ function endDrag(){
     if (checkAllMatched() && !finished){
       finished = true;
       clearInterval(timerInterval);
-      // Add time bonus
       score += timeLeft * TIME_BONUS;
     }
+    updateHUD();
     draw();
   }
 }
@@ -139,6 +151,11 @@ function updateScore(){
   score = matched * BLOCK_POINTS;
 }
 
+function updateHUD(){
+  timerEl.textContent = `Time: ${timeLeft}s`;
+  scoreEl.textContent = `Score: ${score}`;
+}
+
 // ---- DRAW ----
 function draw() {
   ctx.fillStyle = COLOR_BG;
@@ -151,12 +168,6 @@ function draw() {
       ctx.strokeRect(i * gridSize, j * gridSize, gridSize, gridSize);
     }
   }
-
-  // HUD
-  ctx.fillStyle = "#000";
-  ctx.font = "20px Arial";
-  ctx.fillText(`Time: ${timeLeft}s`, 10, 25);
-  ctx.fillText(`Score: ${score}`, 10, 50);
 
   // Targets
   targets.forEach(t => {
@@ -173,15 +184,16 @@ function draw() {
 
   if (finished) {
     ctx.fillStyle = COLOR_WIN;
-    ctx.font = "30px Arial";
+    ctx.font = "24px Arial";
     ctx.fillText(`All matched! Final Score: ${score}`, 20, canvas.height / 2);
   }
   if (lost) {
     ctx.fillStyle = COLOR_LOSE;
-    ctx.font = "30px Arial";
+    ctx.font = "24px Arial";
     ctx.fillText(`Time's up! Final Score: ${score}`, 30, canvas.height / 2);
   }
 }
 
 updateScore();
+updateHUD();
 draw();
