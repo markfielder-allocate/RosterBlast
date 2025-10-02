@@ -1,238 +1,136 @@
-const canvas = document.getElementById("tetris");
-const context = canvas.getContext("2d");
-context.scale(20, 20);
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-function arenaSweep() {
-  let rowCount = 1;
-  outer: for (let y = arena.length - 1; y >= 0; --y) {
-    for (let x = 0; x < arena[y].length; ++x) {
-      if (arena[y][x] === 0) {
-        continue outer;
-      }
-    }
-    const row = arena.splice(y, 1)[0].fill(0);
-    arena.unshift(row);
-    ++y;
+const gridSize = 40;
+const rows = canvas.height / gridSize;
+const cols = canvas.width / gridSize;
 
-    player.score += rowCount * 10;
-    rowCount *= 2;
-  }
+// Colors from CSS
+const _CSS = getComputedStyle(document.documentElement);
+const COLOR_BG         = _CSS.getPropertyValue('--bg').trim() || '#f6f7f8';
+const GRID_LINE       = _CSS.getPropertyValue('--grid-line').trim() || '#e2e6ea';
+const COLOR_BLOCK     = _CSS.getPropertyValue('--block').trim() || '#e74c3c';        // red
+const COLOR_PLAYER    = _CSS.getPropertyValue('--player').trim() || '#f1c40f';       // yellow
+const COLOR_TARGET    = _CSS.getPropertyValue('--target').trim() || '#7b4fa1';       // purple
+const COLOR_TARGET_HIT= _CSS.getPropertyValue('--target-hit').trim() || '#28a745';   // green
+const COLOR_WIN       = _CSS.getPropertyValue('--win').trim() || '#3498db';
+
+// Player (yellow)
+let player = { x: 1, y: 1 };
+
+// Blocks (red by default)
+let blocks = [
+  { x: 3, y: 3 },
+  { x: 5, y: 2 },
+];
+
+// Targets (purple until hit)
+let targets = [
+  { x: 6, y: 3 },
+  { x: 2, y: 6 },
+];
+
+let won = false;
+
+function isOnTargetPos(x, y) {
+  return targets.some(t => t.x === x && t.y === y);
 }
-
-function collide(arena, player) {
-  const m = player.matrix;
-  const o = player.pos;
-  for (let y = 0; y < m.length; ++y) {
-    for (let x = 0; x < m[y].length; ++x) {
-      if (
-        m[y][x] !== 0 &&
-        (arena[y + o.y] && arena[y + o.y][x + o.x]) !== 0
-      ) {
-        return true;
-      }
-    }
-  }
-  return false;
+function isOnTarget(block) {
+  return isOnTargetPos(block.x, block.y);
 }
-
-function createMatrix(w, h) {
-  const matrix = [];
-  while (h--) {
-    matrix.push(new Array(w).fill(0));
-  }
-  return matrix;
-}
-
-function createPiece(type) {
-  if (type === "T") {
-    return [
-      [0, 0, 0],
-      [1, 1, 1],
-      [0, 1, 0],
-    ];
-  } else if (type === "O") {
-    return [
-      [2, 2],
-      [2, 2],
-    ];
-  } else if (type === "L") {
-    return [
-      [0, 3, 0],
-      [0, 3, 0],
-      [0, 3, 3],
-    ];
-  } else if (type === "J") {
-    return [
-      [0, 4, 0],
-      [0, 4, 0],
-      [4, 4, 0],
-    ];
-  } else if (type === "I") {
-    return [
-      [0, 5, 0, 0],
-      [0, 5, 0, 0],
-      [0, 5, 0, 0],
-      [0, 5, 0, 0],
-    ];
-  } else if (type === "S") {
-    return [
-      [0, 6, 6],
-      [6, 6, 0],
-      [0, 0, 0],
-    ];
-  } else if (type === "Z") {
-    return [
-      [7, 7, 0],
-      [0, 7, 7],
-      [0, 0, 0],
-    ];
-  }
-}
-
-function drawMatrix(matrix, offset) {
-  matrix.forEach((row, y) => {
-    row.forEach((value, x) => {
-      if (value !== 0) {
-        context.fillStyle = colors[value];
-        context.fillRect(x + offset.x, y + offset.y, 1, 1);
-      }
-    });
-  });
-}
-
-function merge(arena, player) {
-  player.matrix.forEach((row, y) => {
-    row.forEach((value, x) => {
-      if (value !== 0) {
-        arena[y + player.pos.y][x + player.pos.x] = value;
-      }
-    });
-  });
-}
-
-function playerDrop() {
-  player.pos.y++;
-  if (collide(arena, player)) {
-    player.pos.y--;
-    merge(arena, player);
-    playerReset();
-    arenaSweep();
-    updateScore();
-  }
-  dropCounter = 0;
-}
-
-function playerMove(dir) {
-  player.pos.x += dir;
-  if (collide(arena, player)) {
-    player.pos.x -= dir;
-  }
-}
-
-function playerReset() {
-  const pieces = "TJLOSZI";
-  player.matrix = createPiece(pieces[(pieces.length * Math.random()) | 0]);
-  player.pos.y = 0;
-  player.pos.x =
-    ((arena[0].length / 2) | 0) - ((player.matrix[0].length / 2) | 0);
-
-  if (collide(arena, player)) {
-    arena.forEach((row) => row.fill(0));
-    player.score = 0;
-    updateScore();
-  }
-}
-
-function playerRotate(dir) {
-  const pos = player.pos.x;
-  let offset = 1;
-  rotate(player.matrix, dir);
-  while (collide(arena, player)) {
-    player.pos.x += offset;
-    offset = -(offset + (offset > 0 ? 1 : -1));
-    if (offset > player.matrix[0].length) {
-      rotate(player.matrix, -dir);
-      player.pos.x = pos;
-      return;
-    }
-  }
-}
-
-function rotate(matrix, dir) {
-  for (let y = 0; y < matrix.length; ++y) {
-    for (let x = 0; x < y; ++x) {
-      [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
-    }
-  }
-  if (dir > 0) {
-    matrix.forEach((row) => row.reverse());
-  } else {
-    matrix.reverse();
-  }
-}
-
-let dropCounter = 0;
-let dropInterval = 1000;
-let lastTime = 0;
-
-function update(time = 0) {
-  const deltaTime = time - lastTime;
-  lastTime = time;
-
-  dropCounter += deltaTime;
-  if (dropCounter > dropInterval) {
-    playerDrop();
-  }
-
-  draw();
-  requestAnimationFrame(update);
+function checkWin() {
+  return blocks.every(isOnTarget);
 }
 
 function draw() {
-  context.fillStyle = "#000";
-  context.fillRect(0, 0, canvas.width, canvas.height);
+  // background
+  ctx.fillStyle = COLOR_BG;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  drawMatrix(arena, { x: 0, y: 0 });
-  drawMatrix(player.matrix, player.pos);
-}
-
-function updateScore() {
-  document.getElementById("score").innerText = player.score;
-}
-
-const colors = [
-  null,
-  "#FF0D72",
-  "#0DC2FF",
-  "#0DFF72",
-  "#F538FF",
-  "#FF8E0D",
-  "#FFE138",
-  "#3877FF",
-];
-
-const arena = createMatrix(12, 20);
-
-const player = {
-  pos: { x: 0, y: 0 },
-  matrix: null,
-  score: 0,
-};
-
-document.addEventListener("keydown", (event) => {
-  if (event.key === "ArrowLeft") {
-    playerMove(-1);
-  } else if (event.key === "ArrowRight") {
-    playerMove(1);
-  } else if (event.key === "ArrowDown") {
-    playerDrop();
-  } else if (event.key === "q") {
-    playerRotate(-1);
-  } else if (event.key === "w") {
-    playerRotate(1);
+  // grid
+  ctx.strokeStyle = GRID_LINE;
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      ctx.strokeRect(i * gridSize, j * gridSize, gridSize, gridSize);
+    }
   }
+
+  // draw targets (base purple)
+  targets.forEach(t => {
+    ctx.fillStyle = COLOR_TARGET;
+    ctx.fillRect(t.x * gridSize, t.y * gridSize, gridSize, gridSize);
+  });
+
+  // draw blocks; if a block sits on a target, color it green
+  blocks.forEach(b => {
+    const hit = isOnTarget(b);
+    ctx.fillStyle = hit ? COLOR_TARGET_HIT : COLOR_BLOCK;
+    ctx.fillRect(b.x * gridSize, b.y * gridSize, gridSize, gridSize);
+  });
+
+  // draw player (yellow)
+  ctx.fillStyle = COLOR_PLAYER;
+  ctx.fillRect(player.x * gridSize, player.y * gridSize, gridSize, gridSize);
+
+  // Win text
+  if (won) {
+    ctx.fillStyle = COLOR_WIN;
+    ctx.font = "24px Arial";
+    ctx.fillText("You Win!", canvas.width / 2 - 50, canvas.height / 2);
+  }
+}
+
+function movePlayer(dx, dy) {
+  if (won) return;
+
+  const newX = player.x + dx;
+  const newY = player.y + dy;
+
+  // Is there a block where the player wants to move?
+  const block = blocks.find(b => b.x === newX && b.y === newY);
+
+  if (block) {
+    const blockNewX = block.x + dx;
+    const blockNewY = block.y + dy;
+
+    const blockHitsBlock = blocks.some(b => b !== block && b.x === blockNewX && b.y === blockNewY);
+    const inBounds =
+      blockNewX >= 0 && blockNewX < cols &&
+      blockNewY >= 0 && blockNewY < rows;
+
+    if (inBounds && !blockHitsBlock) {
+      // push block
+      block.x = blockNewX;
+      block.y = blockNewY;
+
+      // move player into the vacated space
+      player.x = newX;
+      player.y = newY;
+    }
+  } else {
+    // move player into empty cell
+    const inBounds =
+      newX >= 0 && newX < cols &&
+      newY >= 0 && newY < rows;
+
+    if (inBounds) {
+      player.x = newX;
+      player.y = newY;
+    }
+  }
+
+  // recompute win after any move
+  if (checkWin()) won = true;
+
+  draw();
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowUp") movePlayer(0, -1);
+  if (e.key === "ArrowDown") movePlayer(0, 1);
+  if (e.key === "ArrowLeft") movePlayer(-1, 0);
+  if (e.key === "ArrowRight") movePlayer(1, 0);
 });
 
-playerReset();
-updateScore();
-update();
+// initial paint
+draw();

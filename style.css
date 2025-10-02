@@ -1,11 +1,24 @@
+:root {
+  --bg: #f6f7f8;          /* Background */
+  --grid-line: #e2e6ea;   /* Grid lines */
+
+  --block: #e74c3c;       /* Red blocks */
+  --player: #f1c40f;      /* Yellow player */
+  --target: #7b4fa1;      /* Purple targets (default) */
+  --target-hit: #28a745;  /* Green when block is on target */
+  --win: #3498db;         /* Blue "You Win!" text */
+}
+
 body {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background: #111;
+  background: var(--bg);
+  margin: 0;
 }
+
 canvas {
-  border: 2px solid #fff;
-  background: #000;
+  border: 2px solid var(--grid-line);
+  background: var(--bg);
 }
