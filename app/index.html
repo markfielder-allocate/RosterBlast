@@ -2,14 +2,37 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Block Matching Puzzle</title>
+  <title>Roster Blast</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background: var(--bg);
+      font-family: Arial, sans-serif;
+    }
+
+    p.game-desc {
+      margin-top: 10px;
+      font-size: 18px;
+      color: #333;
+      text-align: center;
+    }
+
+    canvas {
+      border: 2px solid var(--grid-line);
+      background: var(--bg);
+    }
+  </style>
 </head>
 <body>
-  <h2 style="color:white; text-align:center;">Block Matching Puzzle</h2>
   <canvas id="game" width="400" height="400"></canvas>
-  <p style="color:white; text-align:center;">Use arrow keys to move & push blocks</p>
+  <p class="game-desc">Quick! Drag the red vacancies onto the purple duties!</p>
+
   <script src="script.js"></script>
 </body>
 </html>
