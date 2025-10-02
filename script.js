@@ -5,49 +5,132 @@ const gridSize = 40;
 const rows = canvas.height / gridSize;
 const cols = canvas.width / gridSize;
 
-// Colors from CSS
-const _CSS = getComputedStyle(document.documentElement);
-const COLOR_BG         = _CSS.getPropertyValue('--bg').trim() || '#f6f7f8';
-const GRID_LINE       = _CSS.getPropertyValue('--grid-line').trim() || '#e2e6ea';
-const COLOR_BLOCK     = _CSS.getPropertyValue('--block').trim() || '#e74c3c';        // red
-const COLOR_PLAYER    = _CSS.getPropertyValue('--player').trim() || '#f1c40f';       // yellow
-const COLOR_TARGET    = _CSS.getPropertyValue('--target').trim() || '#7b4fa1';       // purple
-const COLOR_TARGET_HIT= _CSS.getPropertyValue('--target-hit').trim() || '#28a745';   // green
-const COLOR_WIN       = _CSS.getPropertyValue('--win').trim() || '#3498db';
+/* ---------------- CONFIG ---------------- */
+const NUM_BLOCKS = 20;  // 🔴 number of movable blocks
+/* ----------------------------------------- */
 
-// Player (yellow)
-let player = { x: 1, y: 1 };
+// ---- COLORS ----
+const css = getComputedStyle(document.documentElement);
+const COLOR_BG          = css.getPropertyValue('--bg').trim() || '#f6f7f8';
+const GRID_LINE         = css.getPropertyValue('--grid-line').trim() || '#e2e6ea';
+const COLOR_BLOCK       = css.getPropertyValue('--block').trim() || '#e74c3c';
+const COLOR_TARGET      = css.getPropertyValue('--target').trim() || '#7b4fa1';
+const COLOR_TARGET_HIT  = css.getPropertyValue('--target-hit').trim() || '#28a745';
+const COLOR_WIN         = css.getPropertyValue('--win').trim() || '#3498db';
+const COLOR_LOSE        = '#e74c3c';
 
-// Blocks (red by default)
-let blocks = [
-  { x: 3, y: 3 },
-  { x: 5, y: 2 },
-];
+// ---- GAME SETUP ----
+const topHalf = Math.floor(rows / 2);
 
-// Targets (purple until hit)
-let targets = [
-  { x: 6, y: 3 },
-  { x: 2, y: 6 },
-];
+function randomUniquePositions(count, minY, maxY, taken = []) {
+  const positions = [];
+  while (positions.length < count) {
+    const x = Math.floor(Math.random() * (cols - 2)) + 1; // avoid edges
+    const y = Math.floor(Math.random() * (maxY - minY)) + minY;
+    if (y <= 0 || y >= rows - 1) continue; // avoid top/bottom edge
+    const conflict =
+      taken.some(p => p.x === x && p.y === y) ||
+      positions.some(p => p.x === x && p.y === y);
+    if (!conflict) positions.push({ x, y });
+  }
+  return positions;
+}
+
+let blocks = randomUniquePositions(NUM_BLOCKS, 1, topHalf);
+let targets = randomUniquePositions(NUM_BLOCKS, topHalf, rows - 1, blocks);
 
 let won = false;
+let lost = false;
 
-function isOnTargetPos(x, y) {
-  return targets.some(t => t.x === x && t.y === y);
+// ---- TIMER ----
+let timeLeft = 60; // default 60s
+const timerInterval = setInterval(() => {
+  if (won || lost) return;
+  timeLeft--;
+  if (timeLeft <= 0) {
+    lost = true;
+    clearInterval(timerInterval);
+  }
+  draw();
+}, 1000);
+
+// ---- DRAGGING ----
+let dragging = null;  // {index, offsetX, offsetY}
+canvas.addEventListener('mousedown', startDrag);
+canvas.addEventListener('mousemove', drag);
+canvas.addEventListener('mouseup', endDrag);
+canvas.addEventListener('mouseleave', endDrag);
+
+// Touch support
+canvas.addEventListener('touchstart', e => startDrag(toMouse(e)), {passive:false});
+canvas.addEventListener('touchmove', e => {drag(toMouse(e)); e.preventDefault();}, {passive:false});
+canvas.addEventListener('touchend', e => endDrag(toMouse(e)));
+
+function toMouse(touchEvent){
+  const rect = canvas.getBoundingClientRect();
+  const t = touchEvent.touches[0] || touchEvent.changedTouches[0];
+  return {clientX: t.clientX - rect.left, clientY: t.clientY - rect.top};
 }
+
+function startDrag(e){
+  if (won || lost) return;
+  const pos = mousePos(e);
+  const bIndex = blocks.findIndex(b =>
+    pos.x >= b.x * gridSize && pos.x < (b.x+1)*gridSize &&
+    pos.y >= b.y * gridSize && pos.y < (b.y+1)*gridSize
+  );
+  if (bIndex >= 0) {
+    dragging = {
+      index: bIndex,
+      offsetX: pos.x - blocks[bIndex].x * gridSize,
+      offsetY: pos.y - blocks[bIndex].y * gridSize
+    };
+  }
+}
+
+function drag(e){
+  if (!dragging || won || lost) return;
+  const pos = mousePos(e);
+  const bx = Math.floor((pos.x - dragging.offsetX + gridSize/2)/gridSize);
+  const by = Math.floor((pos.y - dragging.offsetY + gridSize/2)/gridSize);
+  if (bx>=0 && bx<cols && by>=0 && by<rows){
+    blocks[dragging.index] = {x:bx, y:by};
+  }
+  draw();
+}
+
+function endDrag(){
+  if (dragging){
+    dragging=null;
+    if (checkWin()){
+      won = true;
+      clearInterval(timerInterval);
+    }
+    draw();
+  }
+}
+
+function mousePos(e){
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  };
+}
+
+// ---- LOGIC ----
 function isOnTarget(block) {
-  return isOnTargetPos(block.x, block.y);
+  return targets.some(t => t.x === block.x && t.y === block.y);
 }
 function checkWin() {
   return blocks.every(isOnTarget);
 }
 
 function draw() {
-  // background
   ctx.fillStyle = COLOR_BG;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // grid
+  // Grid
   ctx.strokeStyle = GRID_LINE;
   for (let i = 0; i < cols; i++) {
     for (let j = 0; j < rows; j++) {
@@ -55,82 +138,34 @@ function draw() {
     }
   }
 
-  // draw targets (base purple)
+  // Timer
+  ctx.fillStyle = "#000";
+  ctx.font = "20px Arial";
+  ctx.fillText(`Time: ${timeLeft}s`, 10, 25);
+
+  // Targets
   targets.forEach(t => {
-    ctx.fillStyle = COLOR_TARGET;
+    const hit = blocks.some(b => b.x === t.x && b.y === t.y);
+    ctx.fillStyle = hit ? COLOR_TARGET_HIT : COLOR_TARGET;
     ctx.fillRect(t.x * gridSize, t.y * gridSize, gridSize, gridSize);
   });
 
-  // draw blocks; if a block sits on a target, color it green
+  // Blocks
   blocks.forEach(b => {
-    const hit = isOnTarget(b);
-    ctx.fillStyle = hit ? COLOR_TARGET_HIT : COLOR_BLOCK;
+    ctx.fillStyle = isOnTarget(b) ? COLOR_TARGET_HIT : COLOR_BLOCK;
     ctx.fillRect(b.x * gridSize, b.y * gridSize, gridSize, gridSize);
   });
 
-  // draw player (yellow)
-  ctx.fillStyle = COLOR_PLAYER;
-  ctx.fillRect(player.x * gridSize, player.y * gridSize, gridSize, gridSize);
-
-  // Win text
   if (won) {
     ctx.fillStyle = COLOR_WIN;
-    ctx.font = "24px Arial";
-    ctx.fillText("You Win!", canvas.width / 2 - 50, canvas.height / 2);
+    ctx.font = "30px Arial";
+    ctx.fillText("You Win!", canvas.width / 2 - 70, canvas.height / 2);
+  }
+  if (lost) {
+    ctx.fillStyle = COLOR_LOSE;
+    ctx.font = "30px Arial";
+    ctx.fillText("Time's up! You Lose!", canvas.width / 2 - 130, canvas.height / 2);
   }
 }
 
-function movePlayer(dx, dy) {
-  if (won) return;
-
-  const newX = player.x + dx;
-  const newY = player.y + dy;
-
-  // Is there a block where the player wants to move?
-  const block = blocks.find(b => b.x === newX && b.y === newY);
-
-  if (block) {
-    const blockNewX = block.x + dx;
-    const blockNewY = block.y + dy;
-
-    const blockHitsBlock = blocks.some(b => b !== block && b.x === blockNewX && b.y === blockNewY);
-    const inBounds =
-      blockNewX >= 0 && blockNewX < cols &&
-      blockNewY >= 0 && blockNewY < rows;
-
-    if (inBounds && !blockHitsBlock) {
-      // push block
-      block.x = blockNewX;
-      block.y = blockNewY;
-
-      // move player into the vacated space
-      player.x = newX;
-      player.y = newY;
-    }
-  } else {
-    // move player into empty cell
-    const inBounds =
-      newX >= 0 && newX < cols &&
-      newY >= 0 && newY < rows;
-
-    if (inBounds) {
-      player.x = newX;
-      player.y = newY;
-    }
-  }
-
-  // recompute win after any move
-  if (checkWin()) won = true;
-
-  draw();
-}
-
-document.addEventListener("keydown", e => {
-  if (e.key === "ArrowUp") movePlayer(0, -1);
-  if (e.key === "ArrowDown") movePlayer(0, 1);
-  if (e.key === "ArrowLeft") movePlayer(-1, 0);
-  if (e.key === "ArrowRight") movePlayer(1, 0);
-});
-
-// initial paint
 draw();
